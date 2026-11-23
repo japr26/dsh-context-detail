@@ -41,3 +41,7 @@ git clone https://github.com/japr26/dsh-context-detail.git
 The bundle is a local package: install the cloned directory from **Plugins** → **Add plugin**, or point `plugin_manager` `install_bundle` at the directory. It has a Client half, so the strip and the tab appear in open pages without a restart once the profile recomposes.
 
 Tested on DSH Desktop 0.2.3-alpha.2. It reads only the Client slot and projection APIs, so it adds nothing to the prompt and cannot change Host session state.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Use it, modify it, ship it.

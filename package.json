@@ -4,6 +4,19 @@
   "private": true,
   "type": "module",
   "description": "Context strip and context panel with tool, plugin, skill and cache detail.",
+  "license": "MIT",
+  "author": "japr26",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/japr26/dsh-context-detail.git"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "context-window",
+    "tokens"
+  ],
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
