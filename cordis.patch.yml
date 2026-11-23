@@ -1,0 +1,3 @@
+- insert:
+    - id: context-detail
+      name: '@local/dsh-context-detail'

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Context detail",
+    "description": "Adds a context strip above the composer and a Context panel in the right sidebar. The strip shows how much of the model window is in use; clicking it opens the panel, which breaks the window into system prompt, tool definitions, messages and free space, and gives every part a share of the window. Tool definitions are attributed per MCP server and per plugin-provided tool, the skill catalog is listed skill by skill, compactions show their count plus the input and summary size of each one, and session usage reports total input, uncached input, cache reads and writes, output and the prompt-cache hit rate. It reads session projections and loaded history only and makes no model requests, so it costs no tokens; category totals are measured, while the rows inside a category are split in proportion to the text each part contributes."
+  }
+}

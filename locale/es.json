@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Contexto detallado",
+    "description": "Añade una franja de contexto sobre el compositor y un panel Contexto en el sidebar derecho. La franja muestra cuánto de la ventana del modelo está en uso; al pulsarla se abre el panel, que reparte la ventana en aviso del sistema, definiciones de herramientas, mensajes y espacio libre, y da a cada parte su porcentaje de la ventana. Las herramientas se atribuyen por servidor MCP y por herramienta de plugin, el catálogo de skills se lista skill por skill, las compactaciones muestran su número junto al tamaño de entrada y de resumen, y el consumo de la sesión informa la entrada total, la entrada sin caché, las lecturas y escrituras de caché, la salida y el acierto de caché. Solo lee proyecciones e historial cargado y no hace peticiones al modelo, así que no gasta tokens; los totales por categoría están medidos y las filas dentro de una categoría reparten ese total en proporción al texto que aporta cada parte."
+  }
+}
