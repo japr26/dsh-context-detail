@@ -17,6 +17,8 @@ window.__ModuleLoader__.load({
         'panel.subtitle': 'What the model reads on the next request',
         'row.used': 'Used',
         'row.system': 'System prompt',
+        'row.notices': 'Added notices',
+        'notices.count': '{count} blocks',
         'row.tools': 'Tool definitions',
         'row.messages': 'Messages',
         'row.free': 'Free space',
@@ -61,6 +63,8 @@ window.__ModuleLoader__.load({
         'panel.subtitle': 'Lo que el modelo lee en la próxima petición',
         'row.used': 'En uso',
         'row.system': 'Prompt del sistema',
+        'row.notices': 'Avisos añadidos',
+        'notices.count': '{count} bloques',
         'row.tools': 'Definiciones de herramientas',
         'row.messages': 'Mensajes',
         'row.free': 'Espacio libre',
@@ -134,6 +138,7 @@ window.__ModuleLoader__.load({
       '.cdp-cell-tools{background:var(--dsw-alias-state-warn-primary);opacity:1}',
       '.cdp-cell-messages{background:var(--dsw-alias-state-success-primary);opacity:1}',
       '.cdp-rows{display:grid;grid-template-columns:1fr auto 60px;gap:5px 10px;margin:0}',
+      '.cdp-rows-tight{margin-top:6px}',
       '.cdp-row-label{display:flex;align-items:center;gap:6px;color:var(--dsw-alias-label-secondary);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
       '.cdp-swatch{width:7px;height:7px;border-radius:2px;flex:0 0 auto}',
       '.cdp-swatch-free{background:var(--dsw-alias-state-idle-primary)}',
@@ -360,12 +365,12 @@ window.__ModuleLoader__.load({
     }
 
     // The client window holds the last turns only, so compactions from earlier
-    // turns never reach useTrajectory(). These pages read them from the durable
-    // log instead: read-only Remote calls, no model request, no Host state.
+    // turns never reach useTrajectory(). These pages read the durable log
+    // instead: read-only Remote calls, no model request, no Host state.
     const LOG_SCAN_PAGES = 60
     const LOG_SCAN_MESSAGES = 500
-    const logCompactionCache = new Map()
-    const logCompactionFailed = new Set()
+    const logScanCache = new Map()
+    const logScanFailed = new Set()
 
     function resolveSessionRemote(ctx) {
       try {
@@ -399,10 +404,11 @@ window.__ModuleLoader__.load({
       return rows
     }
 
-    /** Walk the session log backwards, one page at a time, collecting compactions. */
-    async function scanLogCompactions(remote, sessionId, signal, onProgress) {
+    /** Walk the session log backwards, one page at a time, collecting events. */
+    async function scanSessionLog(remote, sessionId, signal, onProgress) {
       const starts = new Map()
       const summaries = new Map()
+      const systems = []
       let beforeSeq
       for (let page = 0; page < LOG_SCAN_PAGES; page += 1) {
         const request = {
@@ -431,6 +437,13 @@ window.__ModuleLoader__.load({
               ? data.summary.map(block => (block && typeof block.text === 'string' ? block.text : '')).join('')
               : ''
             if (id && text.length > 0) summaries.set(id, text.length)
+          } else if (event.type === 'system/message') {
+            const data = event.data && typeof event.data === 'object' ? event.data : {}
+            const content = data.message && Array.isArray(data.message.content) ? data.message.content : []
+            const text = content
+              .map(block => (block && typeof block.text === 'string' ? block.text : ''))
+              .join('\n\n')
+            systems.push({ seq: event.seq, chars: text.length, op: event.surfaceOp })
           }
         }
         if (onProgress) onProgress(logCompactionRows(starts, summaries))
@@ -439,7 +452,38 @@ window.__ModuleLoader__.load({
         if (beforeSeq !== undefined && oldest >= beforeSeq) break
         beforeSeq = oldest
       }
-      return logCompactionRows(starts, summaries)
+      return { compactions: logCompactionRows(starts, summaries), systems }
+    }
+
+    /**
+     * Split the system bucket the way the harness builds it: the prompt that
+     * replaced earlier ones, plus the notices appended during the session.
+     */
+    function systemSplit(systems) {
+      if (!Array.isArray(systems) || systems.length === 0) return null
+      const dead = new Set()
+      for (const node of systems) {
+        const op = node.op
+        if (!op || typeof op !== 'object' || op.op !== 'replace') continue
+        const start = isNumber(op.startSeq) ? op.startSeq : undefined
+        if (start === undefined) continue
+        const end = isNumber(op.endSeq) ? op.endSeq : start
+        for (let seq = start; seq <= end; seq += 1) dead.add(seq)
+      }
+      const alive = systems.filter(node => !dead.has(node.seq))
+      if (alive.length === 0) return null
+      let main = null
+      for (const node of alive) {
+        const op = node.op
+        if (op && typeof op === 'object' && op.op === 'replace' && (main === null || node.seq > main.seq)) main = node
+      }
+      if (main === null) main = alive[0]
+      const notices = alive.filter(node => node !== main)
+      return {
+        mainChars: main.chars,
+        noticeChars: notices.reduce((sum, node) => sum + node.chars, 0),
+        noticeCount: notices.length,
+      }
     }
 
     /** Join the window rows with the log rows, newest first, without duplicates. */
@@ -682,35 +726,38 @@ window.__ModuleLoader__.load({
 
         // Compactions older than the loaded window are read from the session
         // log once per session and cached for the page lifetime.
-        const [logCompactions, setLogCompactions] = React.useState(() => {
-          const cached = sessionId ? logCompactionCache.get(sessionId) : undefined
+        // Compactions older than the loaded window, and the split of the system
+        // bucket, are read from the session log once per session.
+        const [logScan, setLogScan] = React.useState(() => {
+          const cached = sessionId ? logScanCache.get(sessionId) : undefined
           return cached === undefined ? null : cached
         })
         const [logState, setLogState] = React.useState('idle')
         React.useEffect(() => {
           if (!sessionId) return undefined
-          if (logCompactionCache.has(sessionId) || logCompactionFailed.has(sessionId)) return undefined
+          if (logScanCache.has(sessionId) || logScanFailed.has(sessionId)) return undefined
           const remote = resolveSessionRemote(ctx)
           if (remote === null) {
-            logCompactionFailed.add(sessionId)
+            logScanFailed.add(sessionId)
             setLogState('failed')
             return undefined
           }
           setLogState('running')
           const controller = new AbortController()
           let alive = true
-          scanLogCompactions(remote, sessionId, controller.signal, rows => {
-            if (alive) setLogCompactions(rows)
+          scanSessionLog(remote, sessionId, controller.signal, rows => {
+            if (alive) setLogScan(previous => ({ compactions: rows, split: previous ? previous.split : null }))
           })
-            .then(rows => {
+            .then(result => {
               if (!alive) return
-              logCompactionCache.set(sessionId, rows)
-              setLogCompactions(rows)
+              const next = { compactions: result.compactions, split: systemSplit(result.systems) }
+              logScanCache.set(sessionId, next)
+              setLogScan(next)
               setLogState('done')
             })
             .catch(() => {
               if (!alive) return
-              logCompactionFailed.add(sessionId)
+              logScanFailed.add(sessionId)
               setLogState('failed')
             })
           return () => {
@@ -735,8 +782,16 @@ window.__ModuleLoader__.load({
         const prompt = latestPrompt(requests)
         const toolGroups = split ? groupTools(prompt ? prompt.tools : null, split.tools) : null
         const systemText = resolveSystemText(prompt, trajectory)
-        const compactions = mergeCompactions(compactionRows(requests), logCompactions)
+        const compactions = mergeCompactions(compactionRows(requests), logScan ? logScan.compactions : null)
         const logCompactionCount = compactions.reduce((sum, row) => (row.fromLog ? sum + 1 : sum), 0)
+        const sysSplit = logScan ? logScan.split : null
+        const sysChars = sysSplit ? sysSplit.mainChars + sysSplit.noticeChars : 0
+        const mainSystemTokens = split && sysChars > 0
+          ? split.system * (sysSplit.mainChars / sysChars)
+          : (split ? split.system : undefined)
+        const noticeSystemTokens = split && sysSplit && sysChars > 0
+          ? Math.max(0, split.system - mainSystemTokens)
+          : undefined
 
         const rows = []
         if (split) {
@@ -885,12 +940,19 @@ window.__ModuleLoader__.load({
               h('summary', { className: 'cdp-summary' },
                 h('span', { className: 'cdp-summary-text' }, t('row.system')),
                 h('span', { className: 'cdp-summary-val' },
-                  '~' + compact(split ? split.system : undefined, locale)),
+                  '~' + compact(mainSystemTokens, locale)),
               ),
               h('pre', { className: 'cdp-pre' }, systemText.length > 8000 ? systemText.slice(0, 8000) + '\n…' : systemText),
             )
             : h('p', { className: 'cdp-empty' },
-              (split ? '~' + compact(split.system, locale) + ' · ' : '') + t('section.system.none')),
+              (split ? '~' + compact(mainSystemTokens, locale) + ' · ' : '') + t('section.system.none')),
+          sysSplit && sysSplit.noticeCount > 0
+            ? h('div', { className: 'cdp-rows cdp-rows-tight' },
+              h('span', { className: 'cdp-row-label' }, t('row.notices')),
+              h('span', { className: 'cdp-row-val' }, '~' + compact(noticeSystemTokens, locale)),
+              h('span', { className: 'cdp-row-pct' }, t('notices.count', { count: sysSplit.noticeCount })),
+            )
+            : null,
         )
 
         const compactionSection = h('section', { className: 'cdp-section' },
