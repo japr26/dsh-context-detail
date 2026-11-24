@@ -42,7 +42,7 @@ window.__ModuleLoader__.load({
         'compaction.between': 'Between turns',
         'compaction.summary': 'Summary',
         'compaction.input': 'Input',
-        'compaction.count': '{count}',
+        'compaction.count': '{count} compactions',
         'compaction.log': '{count} more read from the session log, outside the loaded window.',
         'compaction.reading': 'Reading the session log…',
         'compaction.unavailable': 'The session log could not be read; only the loaded window is listed.',
@@ -89,7 +89,7 @@ window.__ModuleLoader__.load({
         'compaction.between': 'Entre turnos',
         'compaction.summary': 'Resumen',
         'compaction.input': 'Entrada',
-        'compaction.count': '{count}',
+        'compaction.count': '{count} compactaciones',
         'compaction.log': '{count} más leídas del registro de la sesión, fuera del historial cargado.',
         'compaction.reading': 'Leyendo el registro de la sesión…',
         'compaction.unavailable': 'No se pudo leer el registro de la sesión; solo se lista el historial cargado.',
@@ -172,7 +172,7 @@ window.__ModuleLoader__.load({
       '.cdp-compaction-when{color:var(--dsw-alias-label-primary)}',
       '.cdp-compaction-meta{grid-column:1 / -1;color:var(--dsw-alias-label-secondary);font-size:11px;font-variant-numeric:tabular-nums}',
       '.cdp-hint{margin:2px 0 9px;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:1.45}',
-      '.cdp-compactions{overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding-right:4px}',
+      '.cdp-compactions{padding:6px 0 0}',
       '.cdp-compactions .cdp-compaction:last-child{margin-bottom:0}',
     ].join('\n')
 
@@ -722,36 +722,6 @@ window.__ModuleLoader__.load({
           () => ctx.locale.getSnapshot().revision,
         )
 
-        // The compaction list shows five rows and scrolls for the rest. Measure
-        // the sixth row instead of hard-coding a height: the position of that
-        // row is where the scroll window has to end, whatever the row heights.
-        const compactionListRef = React.useRef(null)
-        React.useLayoutEffect(() => {
-          const list = compactionListRef.current
-          if (!list) return undefined
-          const measure = () => {
-            const box = list.getBoundingClientRect()
-            if (box.width === 0 || box.height === 0) return
-            const rows = list.children
-            if (rows.length <= 5) {
-              if (list.style.maxHeight !== '') list.style.maxHeight = ''
-              return
-            }
-            const next = Math.max(
-              1,
-              Math.round(rows[5].getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop),
-            ) + 'px'
-            if (list.style.maxHeight !== next) list.style.maxHeight = next
-          }
-          measure()
-          if (typeof ResizeObserver !== 'function') return undefined
-          const observer = new ResizeObserver(measure)
-          observer.observe(list)
-          return () => observer.disconnect()
-        })
-
-        // Compactions older than the loaded window are read from the session
-        // log once per session and cached for the page lifetime.
         // Compactions older than the loaded window, and the split of the system
         // bucket, are read from the session log once per session.
         const [logScan, setLogScan] = React.useState(() => {
@@ -1008,7 +978,7 @@ window.__ModuleLoader__.load({
         const noticesSection = sysSplit && sysSplit.noticeCount > 0
           ? h('section', { className: 'cdp-section' },
             h('h3', { className: 'cdp-section-title' }, t('section.notices')),
-            h('details', { className: 'cdp-details', open: noticeRows.length <= 6 },
+            h('details', { className: 'cdp-details' },
               h('summary', { className: 'cdp-summary' },
                 h('span', { className: 'cdp-summary-text' }, t('notices.count', { count: sysSplit.noticeCount })),
                 h('span', { className: 'cdp-summary-val' },
@@ -1035,23 +1005,28 @@ window.__ModuleLoader__.load({
           : null
 
         const compactionSection = h('section', { className: 'cdp-section' },
-          h('h3', { className: 'cdp-section-title' },
-            t('section.compaction') + (compactions.length > 0 ? ' · ' + t('compaction.count', { count: compactions.length }) : '')),
+          h('h3', { className: 'cdp-section-title' }, t('section.compaction')),
           compactions.length === 0
             ? h('p', { className: 'cdp-empty' }, t('section.compaction.none'))
-            : h('div', { className: 'cdp-compactions', ref: compactionListRef },
-              compactions.map(entry => h('div', { key: entry.key, className: 'cdp-compaction' },
-                h('span', { className: 'cdp-compaction-when' },
-                  entry.turn === null ? t('compaction.between') : t('compaction.turn', { turn: entry.turn })),
-                h('span', { className: 'cdp-item-val' }, entry.time !== undefined
-                  ? new Date(entry.time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
-                  : ''),
-                h('span', { className: 'cdp-compaction-meta' },
-                  [
-                    entry.input !== undefined ? t('compaction.input') + ' ~' + compact(entry.input, locale) : null,
-                    entry.output !== undefined ? t('compaction.summary') + ' ~' + compact(entry.output, locale) : null,
-                  ].filter(Boolean).join('  ·  ')),
-              ))),
+            : h('details', { className: 'cdp-details' },
+              h('summary', { className: 'cdp-summary' },
+                h('span', { className: 'cdp-summary-text' }, t('compaction.count', { count: compactions.length })),
+                h('span', { className: 'cdp-summary-val' }, ''),
+              ),
+              h('div', { className: 'cdp-compactions' },
+                compactions.map(entry => h('div', { key: entry.key, className: 'cdp-compaction' },
+                  h('span', { className: 'cdp-compaction-when' },
+                    entry.turn === null ? t('compaction.between') : t('compaction.turn', { turn: entry.turn })),
+                  h('span', { className: 'cdp-item-val' }, entry.time !== undefined
+                    ? new Date(entry.time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+                    : ''),
+                  h('span', { className: 'cdp-compaction-meta' },
+                    [
+                      entry.input !== undefined ? t('compaction.input') + ' ~' + compact(entry.input, locale) : null,
+                      entry.output !== undefined ? t('compaction.summary') + ' ~' + compact(entry.output, locale) : null,
+                    ].filter(Boolean).join('  ·  ')),
+                ))),
+            ),
           logCompactionCount > 0
             ? h('p', { className: 'cdp-hint' }, t('compaction.log', { count: logCompactionCount }))
             : null,

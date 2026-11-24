@@ -14,7 +14,7 @@ The panel adds:
   - one row per **MCP server**, with its tool count;
   - one row per **plugin-provided tool** — every non-MCP tool the request carried;
 - the **skill catalog** read from the system prompt, skill by skill, with the share of the system total each entry takes;
-- **compactions** with their count in the section title, and per entry the owning turn (or between turns), the time, the input size and the summary size; the list shows five rows and scrolls for the rest. Compactions older than the loaded window are read from the session log, so reopening a long session still lists them;
+- **compactions** in a collapsible row that starts closed, with the count on the row and, per entry, the owning turn (or between turns), the time, the input size and the summary size. Expanding shows every entry, with no inner scrollbar. Compactions older than the loaded window are read from the session log, so reopening a long session still lists them;
 - the **system prompt** with a short description of what that prompt is, its measured size, and the text itself when the loaded window still holds it;
 - **added notices**: the system messages the harness appends during a session (MCP instruction updates, mode notices), grouped by origin like the tools list, with the block count and each group's share of the system bucket;
 - **session token usage**: total input, uncached input, cache read, cache write, output, each with its share of the input, plus the **prompt-cache hit rate** with a bar.
@@ -32,7 +32,7 @@ The bundle makes no model requests and adds nothing to the prompt, so it costs n
 - Attribution covers what the loaded window still holds. In a long Session the system node is at the start of the log, so the skill catalog and the system text may be unavailable; the panel then shows the measured size and says so.
 - The main-prompt / added-notices split is proportional to the text length of each surviving system node, so the two sections add up to the measured bucket rather than to their own character estimate. Notices that repeat the same origin collapse into one row with a block count.
 - Every non-MCP tool is listed as a plugin tool. DSH registers tools from plugin packages, so that grouping is accurate, but it does not separate built-in packages from optional bundles.
-- Compactions are listed newest first; the list shows five rows and scrolls for the rest, and the count in the title is the real one. Rows read from the session log carry only the summary size, because the log records the summary text rather than the request usage.
+- Compactions and added notices start collapsed and expand in place; the compaction list shows every entry, and the counts on their rows are the real ones. Rows read from the session log carry only the summary size, because the log records the summary text rather than the request usage.
 - The panel needs a session; the hero screen has no right sidebar.
 
 ## Install
