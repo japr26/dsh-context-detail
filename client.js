@@ -40,6 +40,9 @@ window.__ModuleLoader__.load({
         'compaction.summary': 'Summary',
         'compaction.input': 'Input',
         'compaction.count': '{count}',
+        'compaction.log': '{count} more read from the session log, outside the loaded window.',
+        'compaction.reading': 'Reading the session log…',
+        'compaction.unavailable': 'The session log could not be read; only the loaded window is listed.',
         'tools.mcp': 'MCP servers',
         'tools.plugins': 'Plugins',
         'tools.plugins.hint': 'Tools registered by DSH plugin packages',
@@ -81,7 +84,9 @@ window.__ModuleLoader__.load({
         'compaction.summary': 'Resumen',
         'compaction.input': 'Entrada',
         'compaction.count': '{count}',
-        'tools.mcp': 'Servidores MCP',
+        'compaction.log': '{count} más leídas del registro de la sesión, fuera del historial cargado.',
+        'compaction.reading': 'Leyendo el registro de la sesión…',
+        'compaction.unavailable': 'No se pudo leer el registro de la sesión; solo se lista el historial cargado.',
         'tools.plugins': 'Plugins',
         'tools.plugins.hint': 'Herramientas registradas por plugins de DSH',
         'tools.skills': 'Skills',
@@ -345,12 +350,119 @@ window.__ModuleLoader__.load({
           const output = usage && isNumber(usage.outputTokens) ? usage.outputTokens : undefined
           return {
             key: 'compaction:' + String(request.startSeq),
+            seq: isNumber(request.startSeq) ? request.startSeq : undefined,
             turn: isNumber(request.turn) ? request.turn : null,
             time: isNumber(request.startedAt) ? request.startedAt : undefined,
             input: input && input > 0 ? input : undefined,
             output: output && output > 0 ? output : undefined,
           }
         })
+    }
+
+    // The client window holds the last turns only, so compactions from earlier
+    // turns never reach useTrajectory(). These pages read them from the durable
+    // log instead: read-only Remote calls, no model request, no Host state.
+    const LOG_SCAN_PAGES = 60
+    const LOG_SCAN_MESSAGES = 500
+    const logCompactionCache = new Map()
+    const logCompactionFailed = new Set()
+
+    function resolveSessionRemote(ctx) {
+      try {
+        const bound = typeof ctx.get === 'function' ? ctx.get('remote.session') : undefined
+        if (bound && typeof bound.events === 'function') return bound
+      } catch (error) {
+        /* the Remote is absent in profiles without the session controller */
+      }
+      const direct = ctx.remote && ctx.remote.session
+      return direct && typeof direct.events === 'function' ? direct : null
+    }
+
+    /** Build the panel rows from the compaction events a page carried. */
+    function logCompactionRows(starts, summaries) {
+      const rows = []
+      for (const event of starts.values()) {
+        const data = event.data && typeof event.data === 'object' ? event.data : {}
+        const id = typeof data.compactionId === 'string' ? data.compactionId : ''
+        const chars = summaries.get(id) || 0
+        rows.push({
+          key: 'log:' + String(event.seq),
+          seq: event.seq,
+          turn: isNumber(data.turn) ? data.turn : null,
+          time: isNumber(event.time) ? event.time : undefined,
+          input: undefined,
+          output: chars > 0 ? Math.round(chars / 4) : undefined,
+          fromLog: true,
+        })
+      }
+      rows.sort((left, right) => right.seq - left.seq)
+      return rows
+    }
+
+    /** Walk the session log backwards, one page at a time, collecting compactions. */
+    async function scanLogCompactions(remote, sessionId, signal, onProgress) {
+      const starts = new Map()
+      const summaries = new Map()
+      let beforeSeq
+      for (let page = 0; page < LOG_SCAN_PAGES; page += 1) {
+        const request = {
+          address: { kind: 'session', sessionId },
+          maxMessages: LOG_SCAN_MESSAGES,
+          turnWindow: { minMessages: 50, minTurns: 2 },
+        }
+        if (beforeSeq !== undefined) request.beforeSeq = beforeSeq
+        const response = await remote.events(request, signal)
+        // Remote methods answer `{ ok, value }`; a bare page is accepted too.
+        const result = response && response.ok === true ? response.value : response
+        if (response && response.ok === false) {
+          throw new Error('session/events ' + String((response.error && response.error.code) || 'failed'))
+        }
+        if (!result || !Array.isArray(result.records)) break
+        let oldest
+        for (const record of result.records) {
+          const event = record && record.event
+          if (!event || typeof event.type !== 'string' || !isNumber(event.seq)) continue
+          if (oldest === undefined || event.seq < oldest) oldest = event.seq
+          if (event.type === 'compaction/start') starts.set(event.seq, event)
+          else if (event.type === 'compaction/summary') {
+            const data = event.data && typeof event.data === 'object' ? event.data : {}
+            const id = typeof data.compactionId === 'string' ? data.compactionId : ''
+            const text = Array.isArray(data.summary)
+              ? data.summary.map(block => (block && typeof block.text === 'string' ? block.text : '')).join('')
+              : ''
+            if (id && text.length > 0) summaries.set(id, text.length)
+          }
+        }
+        if (onProgress) onProgress(logCompactionRows(starts, summaries))
+        if (result.hasMore !== true || result.records.length === 0) break
+        if (oldest === undefined) break
+        if (beforeSeq !== undefined && oldest >= beforeSeq) break
+        beforeSeq = oldest
+      }
+      return logCompactionRows(starts, summaries)
+    }
+
+    /** Join the window rows with the log rows, newest first, without duplicates. */
+    function mergeCompactions(windowRows, logRows) {
+      const seen = new Set()
+      const merged = []
+      for (const row of windowRows) {
+        if (isNumber(row.seq)) seen.add(row.seq)
+        merged.push(row)
+      }
+      for (const row of logRows || []) {
+        if (isNumber(row.seq) && seen.has(row.seq)) continue
+        merged.push(row)
+      }
+      merged.sort((left, right) => {
+        const leftSeq = isNumber(left.seq) ? left.seq : 0
+        const rightSeq = isNumber(right.seq) ? right.seq : 0
+        if (leftSeq !== rightSeq) return rightSeq - leftSeq
+        const leftTime = isNumber(left.time) ? left.time : 0
+        const rightTime = isNumber(right.time) ? right.time : 0
+        return rightTime - leftTime
+      })
+      return merged
     }
 
     function latestPrompt(requests) {
@@ -568,6 +680,45 @@ window.__ModuleLoader__.load({
           return () => observer.disconnect()
         })
 
+        // Compactions older than the loaded window are read from the session
+        // log once per session and cached for the page lifetime.
+        const [logCompactions, setLogCompactions] = React.useState(() => {
+          const cached = sessionId ? logCompactionCache.get(sessionId) : undefined
+          return cached === undefined ? null : cached
+        })
+        const [logState, setLogState] = React.useState('idle')
+        React.useEffect(() => {
+          if (!sessionId) return undefined
+          if (logCompactionCache.has(sessionId) || logCompactionFailed.has(sessionId)) return undefined
+          const remote = resolveSessionRemote(ctx)
+          if (remote === null) {
+            logCompactionFailed.add(sessionId)
+            setLogState('failed')
+            return undefined
+          }
+          setLogState('running')
+          const controller = new AbortController()
+          let alive = true
+          scanLogCompactions(remote, sessionId, controller.signal, rows => {
+            if (alive) setLogCompactions(rows)
+          })
+            .then(rows => {
+              if (!alive) return
+              logCompactionCache.set(sessionId, rows)
+              setLogCompactions(rows)
+              setLogState('done')
+            })
+            .catch(() => {
+              if (!alive) return
+              logCompactionFailed.add(sessionId)
+              setLogState('failed')
+            })
+          return () => {
+            alive = false
+            controller.abort()
+          }
+        }, [sessionId])
+
         const locale = ctx.locale.getLocale().active
         try {
         const used = isNumber(pressure && pressure.projectedTokens)
@@ -584,7 +735,8 @@ window.__ModuleLoader__.load({
         const prompt = latestPrompt(requests)
         const toolGroups = split ? groupTools(prompt ? prompt.tools : null, split.tools) : null
         const systemText = resolveSystemText(prompt, trajectory)
-        const compactions = compactionRows(requests)
+        const compactions = mergeCompactions(compactionRows(requests), logCompactions)
+        const logCompactionCount = compactions.reduce((sum, row) => (row.fromLog ? sum + 1 : sum), 0)
 
         const rows = []
         if (split) {
@@ -747,7 +899,7 @@ window.__ModuleLoader__.load({
           compactions.length === 0
             ? h('p', { className: 'cdp-empty' }, t('section.compaction.none'))
             : h('div', { className: 'cdp-compactions', ref: compactionListRef },
-              compactions.slice().reverse().map(entry => h('div', { key: entry.key, className: 'cdp-compaction' },
+              compactions.map(entry => h('div', { key: entry.key, className: 'cdp-compaction' },
                 h('span', { className: 'cdp-compaction-when' },
                   entry.turn === null ? t('compaction.between') : t('compaction.turn', { turn: entry.turn })),
                 h('span', { className: 'cdp-item-val' }, entry.time !== undefined
@@ -759,6 +911,14 @@ window.__ModuleLoader__.load({
                     entry.output !== undefined ? t('compaction.summary') + ' ~' + compact(entry.output, locale) : null,
                   ].filter(Boolean).join('  ·  ')),
               ))),
+          logCompactionCount > 0
+            ? h('p', { className: 'cdp-hint' }, t('compaction.log', { count: logCompactionCount }))
+            : null,
+          logState === 'running'
+            ? h('p', { className: 'cdp-hint' }, t('compaction.reading'))
+            : logState === 'failed'
+              ? h('p', { className: 'cdp-hint' }, t('compaction.unavailable'))
+              : null,
         )
 
         const usageRow = (key, label, value, extra) => [
