@@ -17,16 +17,17 @@ window.__ModuleLoader__.load({
         'panel.subtitle': 'What the model reads on the next request',
         'row.used': 'Used',
         'row.system': 'System prompt',
-        'row.notices': 'Added notices',
         'notices.count': '{count} blocks',
         'row.tools': 'Tool definitions',
         'row.messages': 'Messages',
         'row.free': 'Free space',
         'section.tools': 'Tools',
         'section.tools.none': 'No tool catalog in the loaded history',
-        'section.system': 'System prompt text',
+        'section.system': 'System prompt',
         'section.system.hint': 'The standing instructions DSH sends before every conversation: identity, file and tool rules, the MCP server docs and the skill catalog. They are re-sent with every request, so this is the fixed cost paid before the conversation starts.',
         'section.system.none': 'The system prompt is outside the loaded history',
+        'section.notices': 'Added notices',
+        'system.show': 'Show the text',
         'section.compaction': 'Compactions',
         'section.compaction.none': 'No compaction in the loaded history',
         'section.usage': 'Session token usage',
@@ -63,16 +64,17 @@ window.__ModuleLoader__.load({
         'panel.subtitle': 'Lo que el modelo lee en la próxima petición',
         'row.used': 'En uso',
         'row.system': 'Prompt del sistema',
-        'row.notices': 'Avisos añadidos',
         'notices.count': '{count} bloques',
         'row.tools': 'Definiciones de herramientas',
         'row.messages': 'Mensajes',
         'row.free': 'Espacio libre',
         'section.tools': 'Herramientas',
         'section.tools.none': 'Sin catálogo de herramientas en el historial cargado',
-        'section.system': 'Texto del prompt del sistema',
+        'section.system': 'Prompt del sistema',
         'section.system.hint': 'Las instrucciones fijas que DSH envía antes de cada conversación: identidad, reglas de archivos y herramientas, documentación de los MCP y catálogo de skills. Se reenvían en cada petición, así que es el coste fijo antes de escribir nada.',
         'section.system.none': 'El prompt del sistema está fuera del historial cargado',
+        'section.notices': 'Avisos añadidos',
+        'system.show': 'Ver el texto',
         'section.compaction': 'Compactaciones',
         'section.compaction.none': 'Sin compactaciones en el historial cargado',
         'section.usage': 'Consumo de la sesión',
@@ -443,7 +445,13 @@ window.__ModuleLoader__.load({
             const text = content
               .map(block => (block && typeof block.text === 'string' ? block.text : ''))
               .join('\n\n')
-            systems.push({ seq: event.seq, chars: text.length, op: event.surfaceOp })
+            systems.push({
+              seq: event.seq,
+              chars: text.length,
+              time: isNumber(event.time) ? event.time : undefined,
+              label: noticeLabel(text),
+              op: event.surfaceOp,
+            })
           }
         }
         if (onProgress) onProgress(logCompactionRows(starts, summaries))
@@ -453,6 +461,15 @@ window.__ModuleLoader__.load({
         beforeSeq = oldest
       }
       return { compactions: logCompactionRows(starts, summaries), systems }
+    }
+
+    /** First meaningful line of a notice, without the boilerplate prefix. */
+    function noticeLabel(text) {
+      const line = String(text || '').split('\n').find(part => part.trim().length > 0) || ''
+      const trimmed = line.trim()
+      const replaced = /^The following replaces the earlier instructions from\s+(.+?)\.?$/i.exec(trimmed)
+      if (replaced) return replaced[1].trim()
+      return trimmed
     }
 
     /**
@@ -478,11 +495,20 @@ window.__ModuleLoader__.load({
         if (op && typeof op === 'object' && op.op === 'replace' && (main === null || node.seq > main.seq)) main = node
       }
       if (main === null) main = alive[0]
-      const notices = alive.filter(node => node !== main)
+      const notices = alive
+        .filter(node => node !== main)
+        .sort((left, right) => right.seq - left.seq)
+        .map(node => ({
+          key: 'notice:' + String(node.seq),
+          label: node.label,
+          chars: node.chars,
+          time: node.time,
+        }))
       return {
         mainChars: main.chars,
         noticeChars: notices.reduce((sum, node) => sum + node.chars, 0),
         noticeCount: notices.length,
+        blocks: notices,
       }
     }
 
@@ -932,28 +958,81 @@ window.__ModuleLoader__.load({
           ),
         )
 
+        const noticeRows = []
+        if (sysSplit) {
+          const byLabel = new Map()
+          for (const block of sysSplit.blocks) {
+            const label = block.label || '—'
+            const existing = byLabel.get(label)
+            if (existing) {
+              existing.count += 1
+              existing.chars += block.chars
+            } else {
+              byLabel.set(label, { key: 'notice:' + label, label, count: 1, chars: block.chars })
+            }
+          }
+          for (const group of byLabel.values()) {
+            noticeRows.push({
+              key: group.key,
+              label: group.label,
+              count: group.count,
+              tokens: noticeSystemTokens !== undefined && sysSplit.noticeChars > 0
+                ? noticeSystemTokens * group.chars / sysSplit.noticeChars
+                : undefined,
+            })
+          }
+          noticeRows.sort((left, right) => (right.tokens || 0) - (left.tokens || 0))
+        }
+
         const systemSection = h('section', { className: 'cdp-section' },
           h('h3', { className: 'cdp-section-title' }, t('section.system')),
           h('p', { className: 'cdp-hint' }, t('section.system.hint')),
+          h('div', {
+            className: 'cdp-rows cdp-rows-tight',
+            title: !systemText && split ? t('section.system.none') : undefined,
+          },
+            h('span', { className: 'cdp-row-label' }, t('row.system')),
+            h('span', { className: 'cdp-row-val' }, '~' + compact(mainSystemTokens, locale)),
+            h('span', { className: 'cdp-row-pct' }, share(mainSystemTokens, capacity)),
+          ),
           systemText
             ? h('details', { className: 'cdp-details' },
               h('summary', { className: 'cdp-summary' },
-                h('span', { className: 'cdp-summary-text' }, t('row.system')),
-                h('span', { className: 'cdp-summary-val' },
-                  '~' + compact(mainSystemTokens, locale)),
+                h('span', { className: 'cdp-summary-text' }, t('system.show')),
               ),
               h('pre', { className: 'cdp-pre' }, systemText.length > 8000 ? systemText.slice(0, 8000) + '\n…' : systemText),
             )
-            : h('p', { className: 'cdp-empty' },
-              (split ? '~' + compact(mainSystemTokens, locale) + ' · ' : '') + t('section.system.none')),
-          sysSplit && sysSplit.noticeCount > 0
-            ? h('div', { className: 'cdp-rows cdp-rows-tight' },
-              h('span', { className: 'cdp-row-label' }, t('row.notices')),
-              h('span', { className: 'cdp-row-val' }, '~' + compact(noticeSystemTokens, locale)),
-              h('span', { className: 'cdp-row-pct' }, t('notices.count', { count: sysSplit.noticeCount })),
-            )
             : null,
         )
+
+        const noticesSection = sysSplit && sysSplit.noticeCount > 0
+          ? h('section', { className: 'cdp-section' },
+            h('h3', { className: 'cdp-section-title' }, t('section.notices')),
+            h('details', { className: 'cdp-details', open: noticeRows.length <= 6 },
+              h('summary', { className: 'cdp-summary' },
+                h('span', { className: 'cdp-summary-text' }, t('notices.count', { count: sysSplit.noticeCount })),
+                h('span', { className: 'cdp-summary-val' },
+                  '~' + compact(noticeSystemTokens, locale) + ' · ' + share(noticeSystemTokens, capacity)),
+              ),
+              h('ul', { className: 'cdp-list' }, noticeRows.slice(0, 40).map(row => [
+                h('li', { key: row.key, className: 'cdp-item', title: row.label },
+                  h('span', { className: 'cdp-mono' }, row.label || '—'),
+                  ' · ' + row.count),
+                h('li', { key: row.key + '-value', className: 'cdp-item-val' },
+                  row.tokens === undefined ? '—' : '~' + compact(row.tokens, locale)),
+                h('li', { key: row.key + '-pct', className: 'cdp-item-pct' }, share(row.tokens, capacity)),
+              ]).concat(
+                noticeRows.length > 40
+                  ? [[
+                    h('li', { key: 'notices-more', className: 'cdp-item' },
+                      t('tools.more', { count: noticeRows.length - 40 })),
+                    h('li', { key: 'notices-more-value', className: 'cdp-item-val' }, ''),
+                    h('li', { key: 'notices-more-pct', className: 'cdp-item-pct' }, ''),
+                  ]]
+                  : [],
+              )),
+            ))
+          : null
 
         const compactionSection = h('section', { className: 'cdp-section' },
           h('h3', { className: 'cdp-section-title' },
@@ -1055,6 +1134,7 @@ window.__ModuleLoader__.load({
             : null,
           toolSection,
           systemSection,
+          noticesSection,
           compactionSection,
           usageSection,
           h('p', { className: 'cdp-note' }, t('panel.note')),
