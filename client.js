@@ -44,6 +44,7 @@ window.__ModuleLoader__.load({
         'compaction.input': 'Input',
         'compaction.count': '{count} compactions',
         'compaction.log': '{count} more read from the session log, outside the loaded window.',
+        'compaction.log.all': 'All {count} read from the session log, outside the loaded window.',
         'compaction.reading': 'Reading the session log…',
         'compaction.unavailable': 'The session log could not be read; only the loaded window is listed.',
         'tools.mcp': 'MCP servers',
@@ -91,8 +92,10 @@ window.__ModuleLoader__.load({
         'compaction.input': 'Entrada',
         'compaction.count': '{count} compactaciones',
         'compaction.log': '{count} más leídas del registro de la sesión, fuera del historial cargado.',
+        'compaction.log.all': 'Las {count} se leyeron del registro de la sesión, fuera del historial cargado.',
         'compaction.reading': 'Leyendo el registro de la sesión…',
         'compaction.unavailable': 'No se pudo leer el registro de la sesión; solo se lista el historial cargado.',
+        'tools.mcp': 'Servidores MCP',
         'tools.plugins': 'Plugins',
         'tools.plugins.hint': 'Herramientas registradas por plugins de DSH',
         'tools.skills': 'Skills',
@@ -1028,7 +1031,9 @@ window.__ModuleLoader__.load({
                 ))),
             ),
           logCompactionCount > 0
-            ? h('p', { className: 'cdp-hint' }, t('compaction.log', { count: logCompactionCount }))
+            ? h('p', { className: 'cdp-hint' }, logCompactionCount >= compactions.length
+              ? t('compaction.log.all', { count: logCompactionCount })
+              : t('compaction.log', { count: logCompactionCount }))
             : null,
           logState === 'running'
             ? h('p', { className: 'cdp-hint' }, t('compaction.reading'))
