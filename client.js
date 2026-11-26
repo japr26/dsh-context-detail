@@ -26,11 +26,20 @@ window.__ModuleLoader__.load({
         'row.free': 'Free space',
         'section.tools': 'Tools',
         'section.tools.none': 'No tool catalog in the loaded history',
-        'section.tools.hint': 'Definitions are the fixed catalog sent with every request; the calls and their results travel inside the messages.',
+        'section.tools.hint': 'Definitions are the fixed catalog sent with every request. Tool calls carry the arguments of each use and tool results carry what each tool returned; both travel inside the messages, so they are counted here and not in Messages.',
         'tools.definitions': 'Definitions (catalog)',
         'tools.calls': 'Tool calls (arguments)',
         'tools.results': 'Tool results',
-        'tools.byTool': 'By tool',
+        'tools.title.definitions': 'One entry per tool: its name, description and the JSON schema of its parameters. It is re-sent with every request.',
+        'tools.title.calls': 'The JSON arguments of every tool call the session recorded, read from the session log.',
+        'tools.title.results': 'What each tool returned: file contents, command output, search results, in the session log.',
+        'tools.column.defs': 'defs',
+        'tools.column.total': 'total',
+        'tools.column.pct': '%',
+        'tools.column.total.hint': 'Definitions plus the arguments and results the calls of these tools added.',
+        'tools.server': '{name} · {count} tools',
+        'tools.mcp.hint': 'Every MCP server the request carried, with the definitions of its tools and everything their calls add.',
+        'tools.skills.title': 'The skill catalog travels inside the system prompt, so its size is part of the system bucket, not of Tools.',
         'tools.calls.count': '{count} calls',
         'tools.results.count': '{count} results',
         'tools.scan.unavailable': 'The session log could not be read; calls and results stay inside Messages.',
@@ -103,11 +112,20 @@ window.__ModuleLoader__.load({
         'row.free': 'Espacio libre',
         'section.tools': 'Herramientas',
         'section.tools.none': 'Sin catálogo de herramientas en el historial cargado',
-        'section.tools.hint': 'Las definiciones son el catálogo fijo que viaja en cada petición; las llamadas y sus resultados van dentro de los mensajes.',
+        'section.tools.hint': 'Las definiciones son el catálogo fijo que viaja en cada petición. Las llamadas llevan los argumentos de cada uso y los resultados llevan lo que devolvió cada herramienta; ambos van dentro de los mensajes, así que se cuentan aquí y no en Mensajes.',
         'tools.definitions': 'Definiciones (catálogo)',
         'tools.calls': 'Llamadas (argumentos)',
         'tools.results': 'Resultados de herramientas',
-        'tools.byTool': 'Por herramienta',
+        'tools.title.definitions': 'Una entrada por herramienta: su nombre, su descripción y el esquema JSON de sus parámetros. Viaja en cada petición.',
+        'tools.title.calls': 'Los argumentos JSON de cada llamada a herramienta que registró la sesión, leídos del registro de sesión.',
+        'tools.title.results': 'Lo que devolvió cada herramienta: contenido de archivos, salida de comandos, resultados de búsqueda, del registro de sesión.',
+        'tools.column.defs': 'defs',
+        'tools.column.total': 'total',
+        'tools.column.pct': '%',
+        'tools.column.total.hint': 'Las definiciones más los argumentos y resultados que sumaron las llamadas de esas herramientas.',
+        'tools.server': '{name} · {count} herramientas',
+        'tools.mcp.hint': 'Cada servidor MCP que llevaba la petición, con las definiciones de sus herramientas y todo lo que suman sus llamadas.',
+        'tools.skills.title': 'El catálogo de skills viaja dentro del system prompt, así que su tamaño es parte del bloque del sistema y no de Herramientas.',
         'tools.calls.count': '{count} llamadas',
         'tools.results.count': '{count} resultados',
         'tools.scan.unavailable': 'No se pudo leer el registro de la sesión; las llamadas y los resultados quedan dentro de Mensajes.',
@@ -230,6 +248,26 @@ window.__ModuleLoader__.load({
       '.cdp-details[open] > .cdp-summary .cdp-summary-text::before{transform:rotate(90deg)}',
       '.cdp-summary-val{font-variant-numeric:tabular-nums;flex:0 0 auto}',
       '.cdp-summary.cdp-summary-cols{display:grid;grid-template-columns:minmax(0,1fr) 72px 56px;gap:10px;align-items:center;justify-content:initial}',
+      // Tool hierarchy: one row that prints the definition share, then the same
+      // definition plus the arguments and results its calls added, then the share
+      // of the window. Group rows, server rows and tool rows share the grid.
+      '.cdp-summary.cdp-summary-cols4{display:grid;grid-template-columns:minmax(0,1fr) 50px 54px 38px;gap:8px;align-items:center;justify-content:initial}',
+      '.cdp-summary-cols4 .cdp-summary-val{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      // The skill row has one number only; it lines up with the last two columns.
+      '.cdp-summary.cdp-summary-cols3r{display:grid;grid-template-columns:minmax(0,1fr) 54px 38px;gap:8px;align-items:center;justify-content:initial}',
+      '.cdp-summary-cols3r .cdp-summary-val{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cdp-toolhead{display:grid;grid-template-columns:minmax(0,1fr) 50px 54px 38px;gap:8px;margin:9px 0 1px;font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:var(--dsw-alias-label-secondary);opacity:.8}',
+      '.cdp-toolhead span{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cdp-toolhead span:first-child{text-align:left}',
+      '.cdp-toolrows{display:grid;grid-template-columns:minmax(0,1fr) 50px 54px 38px;gap:4px 8px;margin:4px 0 0;padding:0;list-style:none}',
+      // Only the label is indented, so the three number columns stay aligned
+      // with the group rows above.
+      '.cdp-tool-nest{margin:6px 0 0}',
+      '.cdp-tool-nest > .cdp-summary .cdp-summary-text{padding-left:12px}',
+      '.cdp-toolrows-nested .cdp-toolrow{padding-left:24px}',
+      '.cdp-toolrow{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--dsw-alias-label-secondary)}',
+      '.cdp-tool-defs,.cdp-tool-total,.cdp-tool-pct{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cdp-tool-defs,.cdp-tool-pct{color:var(--dsw-alias-label-secondary)}',
       '.cdp-summary-cols .cdp-summary-val{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cdp-summary-pct{text-align:right;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cdp-list{display:grid;grid-template-columns:minmax(0,1fr) 72px 56px;gap:4px 10px;margin:8px 0 0;padding:0;list-style:none}',
@@ -1612,28 +1650,149 @@ window.__ModuleLoader__.load({
 
         const segments = segmentWidths(percent, rowSplit)
 
-        const mcpTotal = toolGroups ? toolGroups.mcpRows.reduce((sum, row) => sum + row.tokens, 0) : 0
-        const pluginsTotal = toolGroups ? toolGroups.otherRows.reduce((sum, row) => sum + row.tokens, 0) : 0
         const skillTotalSize = skills ? skills.entries.reduce((sum, entry) => sum + entry.size, 0) : 0
 
-        const toolRows = (entries, limit) => entries.slice(0, limit).map(entry => [
-          h('li', { key: entry.key, className: 'cdp-item' },
-            h('span', { className: 'cdp-mono' }, entry.label),
-            entry.count !== undefined ? ' · ' + t('tools.count', { count: entry.count }) : ''),
-          h('li', { key: entry.key + '-value', className: 'cdp-item-val' }, '~' + compact(entry.tokens, locale)),
-          h('li', { key: entry.key + '-pct', className: 'cdp-item-pct' }, share(entry.tokens, capacity)),
-        ]).concat(
-          entries.length > limit
-            ? [[
-              h('li', { key: 'more', className: 'cdp-item' }, t('tools.more', { count: entries.length - limit })),
-              h('li', { key: 'more-value', className: 'cdp-item-val' }, ''),
-              h('li', { key: 'more-pct', className: 'cdp-item-pct' }, ''),
-            ]]
-            : [],
+        // The tool hierarchy. Every tool of the request keeps two numbers: the
+        // share of the measured definition bucket it takes, and what its own
+        // calls add on top (arguments plus result content). Server rows and the
+        // two group rows just add their leaves up, so the same pair of numbers
+        // can be read at every level and nothing is listed twice.
+        const toolExtra = new Map()
+        if (toolSummary !== null) {
+          for (const row of toolSummary.byTool) toolExtra.set(row.name, row)
+        }
+        const toolLeaves = []
+        if (split && Array.isArray(promptTools) && promptTools.length > 0) {
+          let catalogSize = 0
+          const sized = []
+          for (const tool of promptTools) {
+            const name = tool && typeof tool.name === 'string' ? tool.name : ''
+            if (!name) continue
+            const size = safeStringify(tool).length
+            catalogSize += size
+            sized.push({ name, size })
+          }
+          for (const entry of sized) {
+            const extra = toolExtra.get(entry.name)
+            toolLeaves.push({
+              name: entry.name,
+              defs: catalogSize > 0 ? split.tools * entry.size / catalogSize : 0,
+              extra: extra ? extra.tokens : 0,
+              calls: extra ? extra.calls : 0,
+              results: extra ? extra.results : 0,
+            })
+          }
+        }
+        // A tool the session called but the catalog no longer carries still
+        // counts: it is listed without a definition share instead of dropped.
+        const catalogNames = new Set(toolLeaves.map(tool => tool.name))
+        for (const extra of toolExtra.values()) {
+          if (catalogNames.has(extra.name)) continue
+          toolLeaves.push({ name: extra.name, defs: undefined, extra: extra.tokens, calls: extra.calls, results: extra.results })
+        }
+        const leafTotal = leaf => (leaf.defs || 0) + leaf.extra
+        const byLeafTotal = (left, right) => leafTotal(right) - leafTotal(left)
+        const mcpServers = []
+        const serverIndex = new Map()
+        const pluginLeaves = []
+        for (const leaf of toolLeaves) {
+          const match = /^mcp__(.+?)__(.+)$/.exec(leaf.name)
+          if (!match) {
+            pluginLeaves.push(leaf)
+            continue
+          }
+          const server = match[1]
+          let bucket = serverIndex.get(server)
+          if (!bucket) {
+            bucket = { server, leaves: [], defs: 0, extra: 0 }
+            serverIndex.set(server, bucket)
+            mcpServers.push(bucket)
+          }
+          bucket.leaves.push({ ...leaf, short: match[2] })
+          bucket.defs += leaf.defs || 0
+          bucket.extra += leaf.extra
+        }
+        for (const bucket of mcpServers) bucket.leaves.sort(byLeafTotal)
+        mcpServers.sort((left, right) => (right.defs + right.extra) - (left.defs + left.extra))
+        pluginLeaves.sort(byLeafTotal)
+        const mcpDefs = mcpServers.reduce((sum, bucket) => sum + bucket.defs, 0)
+        const mcpExtra = mcpServers.reduce((sum, bucket) => sum + bucket.extra, 0)
+        const pluginDefs = pluginLeaves.reduce((sum, leaf) => sum + (leaf.defs || 0), 0)
+        const pluginExtra = pluginLeaves.reduce((sum, leaf) => sum + leaf.extra, 0)
+        const hasToolTree = mcpServers.length > 0 || pluginLeaves.length > 0
+
+        const toolRowCell = (key, className, value) => h('li', { key, className }, value)
+        const toolLeafRow = leaf => [
+          h('li', { key: 'tool:' + leaf.name, className: 'cdp-toolrow', title: leaf.name },
+            h('span', { className: 'cdp-mono' }, leaf.short || leaf.name),
+            leaf.calls > 0 ? ' · ' + t('tools.calls.count', { count: leaf.calls }) : '',
+            leaf.results > 0 ? ' · ' + t('tools.results.count', { count: leaf.results }) : ''),
+          toolRowCell('tool:' + leaf.name + '-defs', 'cdp-tool-defs',
+            leaf.defs === undefined ? '—' : '~' + compact(leaf.defs, locale)),
+          toolRowCell('tool:' + leaf.name + '-total', 'cdp-tool-total', '~' + compact(leafTotal(leaf), locale)),
+          toolRowCell('tool:' + leaf.name + '-pct', 'cdp-tool-pct', share(leafTotal(leaf), capacity)),
+        ]
+
+        /** A group or server row: label, definitions, definitions + calls, share. */
+        const toolTreeRow = (key, label, defs, extra, title) => h('summary', {
+          key,
+          className: 'cdp-summary cdp-summary-cols4',
+          title,
+        },
+          h('span', { className: 'cdp-summary-text', title }, label),
+          h('span', { className: 'cdp-summary-val' }, '~' + compact(defs, locale)),
+          h('span', { className: 'cdp-tool-total' }, '~' + compact(defs + extra, locale)),
+          h('span', { className: 'cdp-summary-pct' }, share(defs + extra, capacity)),
         )
 
-        const toolNumericRow = (key, label, detail, tokens, swatch) => [
-          h('span', { key: key + '-label', className: 'cdp-row-label' },
+        const toolHead = hasToolTree
+          ? h('div', { key: 'head', className: 'cdp-toolhead' },
+            h('span', { key: 'label' }, ''),
+            h('span', { key: 'defs', title: t('tools.title.definitions') }, t('tools.column.defs')),
+            h('span', { key: 'total', title: t('tools.column.total.hint') }, t('tools.column.total')),
+            h('span', { key: 'pct' }, t('tools.column.pct')),
+          )
+          : null
+
+        const toolTree = []
+        if (mcpServers.length > 0) {
+          toolTree.push(h('details', { key: 'mcp', className: 'cdp-details' },
+            toolTreeRow('mcp-summary', t('tools.mcp') + ' (' + mcpServers.length + ')', mcpDefs, mcpExtra, t('tools.mcp.hint')),
+            h('div', { key: 'mcp-body' }, mcpServers.map(bucket => h('details', {
+              key: 'server:' + bucket.server,
+              className: 'cdp-details cdp-tool-nest',
+            },
+              toolTreeRow(
+                'server-summary:' + bucket.server,
+                t('tools.server', { name: bucket.server, count: bucket.leaves.length }),
+                bucket.defs,
+                bucket.extra,
+                bucket.server,
+              ),
+              h('ul', { key: 'server-list', className: 'cdp-toolrows cdp-toolrows-nested' }, bucket.leaves.map(toolLeafRow)),
+            ))),
+          ))
+        }
+        if (pluginLeaves.length > 0) {
+          toolTree.push(h('details', { key: 'plugins', className: 'cdp-details' },
+            toolTreeRow('plugins-summary', t('tools.plugins') + ' (' + pluginLeaves.length + ')', pluginDefs, pluginExtra, t('tools.plugins.hint')),
+            h('ul', { key: 'plugins-list', className: 'cdp-toolrows' },
+              pluginLeaves.slice(0, 40).map(toolLeafRow).concat(
+                pluginLeaves.length > 40
+                  ? [[
+                    h('li', { key: 'plugins-more', className: 'cdp-toolrow' },
+                      t('tools.more', { count: pluginLeaves.length - 40 })),
+                    h('li', { key: 'plugins-more-defs', className: 'cdp-tool-defs' }, ''),
+                    h('li', { key: 'plugins-more-total', className: 'cdp-tool-total' }, ''),
+                    h('li', { key: 'plugins-more-pct', className: 'cdp-tool-pct' }, ''),
+                  ]]
+                  : [],
+              )),
+          ))
+        }
+
+        const toolNumericRow = (key, label, detail, tokens, swatch, title) => [
+          h('span', { key: key + '-label', className: 'cdp-row-label', title },
             h('i', { className: 'cdp-swatch ' + swatch, 'aria-hidden': true }),
             detail === undefined ? label : label + ' · ' + detail),
           h('span', { key: key + '-value', className: 'cdp-row-val' }, '~' + compact(tokens, locale)),
@@ -1650,6 +1809,7 @@ window.__ModuleLoader__.load({
             t('tools.count', { count: toolGroups.toolCount }),
             split.tools,
             'cdp-dot-tools',
+            t('tools.title.definitions'),
           ))
         }
         if (toolSummary !== null) {
@@ -1660,6 +1820,7 @@ window.__ModuleLoader__.load({
               t('tools.calls.count', { count: toolSummary.calls }),
               toolSummary.callTokens,
               'cdp-dot-tools',
+              t('tools.title.calls'),
             ),
             toolNumericRow(
               'results',
@@ -1667,6 +1828,7 @@ window.__ModuleLoader__.load({
               t('tools.results.count', { count: toolSummary.results }),
               toolSummary.resultTokens,
               'cdp-dot-messages',
+              t('tools.title.results'),
             ),
           )
         }
@@ -1698,68 +1860,17 @@ window.__ModuleLoader__.load({
           toolNumericRows.length > 0
             ? h('div', { key: 'rows', className: 'cdp-rows cdp-rows-tight' }, toolNumericRows)
             : null,
-          toolGroups === null
+          toolGroups === null && !hasToolTree
             ? h('p', { key: 'none', className: 'cdp-empty' }, t('section.tools.none'))
             : [
-              toolGroups.mcpRows.length > 0
-                ? h('details', { key: 'mcp', className: 'cdp-details' },
-                  h('summary', { className: 'cdp-summary cdp-summary-cols' },
-                    h('span', { className: 'cdp-summary-text' },
-                      t('tools.mcp') + ' (' + toolGroups.mcpRows.length + ')'),
-                    h('span', { className: 'cdp-summary-val' }, '~' + compact(mcpTotal, locale)),
-                    h('span', { className: 'cdp-summary-pct' }, share(mcpTotal, capacity)),
-                  ),
-                  h('ul', { className: 'cdp-list' }, toolRows(toolGroups.mcpRows, 30)),
-                )
-                : null,
-              toolGroups.otherRows.length > 0
-                ? h('details', { key: 'plugins', className: 'cdp-details', title: t('tools.plugins.hint') },
-                  h('summary', { className: 'cdp-summary cdp-summary-cols' },
-                    h('span', { className: 'cdp-summary-text' },
-                      t('tools.plugins') + ' (' + toolGroups.otherRows.length + ')'),
-                    h('span', { className: 'cdp-summary-val' }, '~' + compact(pluginsTotal, locale)),
-                    h('span', { className: 'cdp-summary-pct' }, share(pluginsTotal, capacity)),
-                  ),
-                  h('ul', { className: 'cdp-list' }, toolRows(toolGroups.otherRows, 40)),
-                )
-                : null,
+              toolHead,
+              toolTree,
             ],
           toolSummary === null && logState === 'failed'
             ? h('p', { key: 'scan', className: 'cdp-hint' }, t('tools.scan.unavailable'))
             : null,
-          toolSummary !== null && toolSummary.byTool.length > 0
-            ? h('details', { key: 'by-tool', className: 'cdp-details' },
-              h('summary', { className: 'cdp-summary cdp-summary-cols' },
-                h('span', { className: 'cdp-summary-text' },
-                  t('tools.byTool') + ' (' + toolSummary.byTool.length + ')'),
-                h('span', { className: 'cdp-summary-val' },
-                  '~' + compact(toolSummary.callTokens + toolSummary.resultTokens, locale)),
-                h('span', { className: 'cdp-summary-pct' },
-                  share(toolSummary.callTokens + toolSummary.resultTokens, capacity)),
-              ),
-              h('ul', { className: 'cdp-list' }, toolSummary.byTool.slice(0, 12).map(entry => [
-                h('li', { key: 'by-tool:' + entry.name, className: 'cdp-item', title: entry.name },
-                  h('span', { className: 'cdp-mono' }, entry.name),
-                  entry.calls > 0 ? ' · ' + t('tools.calls.count', { count: entry.calls }) : '',
-                  entry.results > 0 ? ' · ' + t('tools.results.count', { count: entry.results }) : ''),
-                h('li', { key: 'by-tool:' + entry.name + '-value', className: 'cdp-item-val' },
-                  '~' + compact(entry.tokens, locale)),
-                h('li', { key: 'by-tool:' + entry.name + '-pct', className: 'cdp-item-pct' },
-                  share(entry.tokens, capacity)),
-              ]).concat(
-                toolSummary.byTool.length > 12
-                  ? [[
-                    h('li', { key: 'by-tool-more', className: 'cdp-item' },
-                      t('tools.more', { count: toolSummary.byTool.length - 12 })),
-                    h('li', { key: 'by-tool-more-value', className: 'cdp-item-val' }, ''),
-                    h('li', { key: 'by-tool-more-pct', className: 'cdp-item-pct' }, ''),
-                  ]]
-                  : [],
-              )),
-            )
-            : null,
           h('details', { key: 'skills', className: 'cdp-details' },
-            h('summary', { className: 'cdp-summary cdp-summary-cols' },
+            h('summary', { className: 'cdp-summary cdp-summary-cols3r', title: t('tools.skills.title') },
               h('span', { className: 'cdp-summary-text' },
                 t('tools.skills') + (skills ? ' (' + skills.entries.length + ')' : '')),
               h('span', { className: 'cdp-summary-val' },
