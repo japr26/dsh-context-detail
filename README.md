@@ -76,6 +76,16 @@ The bundle is a local package: install the cloned directory from **Plugins** →
 
 Built for DSH Desktop 0.2.x, verified against the 0.2.2-rc.5 Client APIs and tested on 0.2.3-alpha.2. It reads only the Client slot and projection APIs, so it adds nothing to the prompt and cannot change Host session state.
 
+## Checking the layout without the app
+
+`dev/mock-tree.cjs` reads the CSS straight out of `client.js` and writes `dev/mock-tree.html`, a page that rebuilds the tools tree with the panel's own markup — group rows, server row, tool rows and the expanded skills list:
+
+```sh
+node dev/mock-tree.cjs
+```
+
+Open it in any browser and run `[300, 335, 380, 460].map(w => mockTree.measure(w))`: it returns the right edge of every column at each sidebar width and `aligned: true` when the numbers of a row share the edge of their header. That is how the column alignment is checked without touching a running Harness.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Use it, modify it, ship it.
