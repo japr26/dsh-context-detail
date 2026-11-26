@@ -309,6 +309,19 @@ window.__ModuleLoader__.load({
       return (value >= 10 ? Math.round(value * 10) / 10 : Math.round(value * 100) / 100) + '%'
     }
 
+    /**
+     * Compact stamp for a dated row: short month and day, then the clock time,
+     * with no year. The active locale decides the order and the wording, so an
+     * English panel prints "Nov 24 · 21:25" and a Spanish one "24 nov. · 21:25".
+     */
+    function formatWhen(time, locale) {
+      if (!isNumber(time)) return ''
+      const date = new Date(time)
+      const day = date.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
+      const clock = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+      return day + ' · ' + clock
+    }
+
     /** Read the skill catalog the system prompt carries, one entry per line. */
     function parseSkills(systemText) {
       if (typeof systemText !== 'string' || systemText.length === 0) return null
@@ -1908,9 +1921,7 @@ window.__ModuleLoader__.load({
                 compactions.map(entry => h('div', { key: entry.key, className: 'cdp-compaction' },
                   h('span', { className: 'cdp-compaction-when' },
                     entry.turn === null ? t('compaction.between') : t('compaction.turn', { turn: entry.turn })),
-                  h('span', { className: 'cdp-item-val' }, entry.time !== undefined
-                    ? new Date(entry.time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
-                    : ''),
+                  h('span', { className: 'cdp-item-val' }, formatWhen(entry.time, locale)),
                   h('span', { className: 'cdp-compaction-meta' },
                     [
                       // The measured size of the history the compaction
