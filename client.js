@@ -40,6 +40,7 @@ window.__ModuleLoader__.load({
         'tools.server': '{name} · {count} tools',
         'tools.mcp.hint': 'Every MCP server the request carried, with the definitions of its tools and everything their calls add.',
         'tools.skills.title': 'The skill catalog travels inside the system prompt, so its size is part of the system bucket, not of Tools.',
+        'tools.skills.scope': 'system prompt',
         'tools.calls.count': '{count} calls',
         'tools.results.count': '{count} results',
         'tools.scan.unavailable': 'The session log could not be read; calls and results stay inside Messages.',
@@ -126,6 +127,7 @@ window.__ModuleLoader__.load({
         'tools.server': '{name} · {count} herramientas',
         'tools.mcp.hint': 'Cada servidor MCP que llevaba la petición, con las definiciones de sus herramientas y todo lo que suman sus llamadas.',
         'tools.skills.title': 'El catálogo de skills viaja dentro del system prompt, así que su tamaño es parte del bloque del sistema y no de Herramientas.',
+        'tools.skills.scope': 'prompt del sistema',
         'tools.calls.count': '{count} llamadas',
         'tools.results.count': '{count} resultados',
         'tools.scan.unavailable': 'No se pudo leer el registro de la sesión; las llamadas y los resultados quedan dentro de Mensajes.',
@@ -253,9 +255,7 @@ window.__ModuleLoader__.load({
       // of the window. Group rows, server rows and tool rows share the grid.
       '.cdp-summary.cdp-summary-cols4{display:grid;grid-template-columns:minmax(0,1fr) 50px 54px 38px;gap:8px;align-items:center;justify-content:initial}',
       '.cdp-summary-cols4 .cdp-summary-val{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      // The skill row has one number only; it lines up with the last two columns.
-      '.cdp-summary.cdp-summary-cols3r{display:grid;grid-template-columns:minmax(0,1fr) 54px 38px;gap:8px;align-items:center;justify-content:initial}',
-      '.cdp-summary-cols3r .cdp-summary-val{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cdp-muted{color:var(--dsw-alias-label-secondary);opacity:.85}',
       '.cdp-toolhead{display:grid;grid-template-columns:minmax(0,1fr) 50px 54px 38px;gap:8px;margin:9px 0 1px;font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:var(--dsw-alias-label-secondary);opacity:.8}',
       '.cdp-toolhead span{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cdp-toolhead span:first-child{text-align:left}',
@@ -1870,9 +1870,14 @@ window.__ModuleLoader__.load({
             ? h('p', { key: 'scan', className: 'cdp-hint' }, t('tools.scan.unavailable'))
             : null,
           h('details', { key: 'skills', className: 'cdp-details' },
-            h('summary', { className: 'cdp-summary cdp-summary-cols3r', title: t('tools.skills.title') },
+            h('summary', { className: 'cdp-summary cdp-summary-cols4', title: t('tools.skills.title') },
               h('span', { className: 'cdp-summary-text' },
-                t('tools.skills') + (skills ? ' (' + skills.entries.length + ')' : '')),
+                t('tools.skills') + (skills ? ' (' + skills.entries.length + ')' : ''),
+                h('span', { className: 'cdp-muted' }, ' · ' + t('tools.skills.scope'))),
+              // A skill is not a tool: it carries no definition here, only the
+              // size it takes inside the system prompt, so its cell stays empty
+              // and the number lines up with the totals above.
+              h('span', { className: 'cdp-tool-defs' }, ''),
               h('span', { className: 'cdp-summary-val' },
                 skillsTokens !== undefined ? '~' + compact(skillsTokens, locale) : '—'),
               h('span', { className: 'cdp-summary-pct' },

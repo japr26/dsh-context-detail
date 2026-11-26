@@ -18,6 +18,7 @@ The panel adds:
 - then the same numbers as a tree, so every tool shows where its size comes from. Each row prints **defs** (its share of the measured definition bucket), **total** (that definition plus the arguments and results its own calls added) and the share of the window:
   - **MCP servers (n)** — the group row adds every server up; inside it, one row per server (`playwright · 25 tools`) with its own two numbers, and inside the server one row per tool with its call and result counts;
   - **plugins (n)** — one row per non-MCP tool, the tools DSH registers from plugin packages, with the same two numbers and no extra nesting;
+  - **skills (n) · system prompt** — the skill catalog closes the section for reference. A skill is not a tool, so its row prints only its size, the definition column stays empty, and the label says the size belongs to the system prompt, not to Tools;
   - the `by tool` list no longer exists as a separate block: every call and result is counted on the row of the tool, server or group it belongs to;
 - inside **messages**, the split between **your prompts**, **assistant responses** and **reasoning**;
 - the **skill catalog** read from the system prompt, skill by skill, with the share of the system total each entry takes;
@@ -45,7 +46,7 @@ Every part of the plugin, in one place:
 | **system prompt / tools / messages / free space** | The measured `contextBreakdown`, after the recut that moves call arguments and results into Tools. |
 | **Tools → definitions / calls / results** | The three measured parts of the tool context: the catalog, the call arguments and the result content. |
 | **Tools → MCP servers / plugins** | The catalogue tree: group → server → tool, with `defs` and `total` on every row. |
-| **Skills** | The skill catalog carried inside the system prompt, skill by skill. Its tokens belong to the system bucket, not to Tools. |
+| **Skills** | The skill catalog carried inside the system prompt, skill by skill. It is not a tool, so the row shows only its size (no `defs`) and says the size belongs to the system bucket. |
 | **Messages** | Conversation only: your prompts, assistant responses and reasoning. |
 | **System prompt** | The standing instructions, their measured size and their text, from the window, the log or the copy saved for the session. |
 | **Added notices** | The system messages appended during the session, grouped by origin, with their blocks. |
