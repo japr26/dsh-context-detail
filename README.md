@@ -18,7 +18,7 @@ The panel adds:
 - then the same numbers as a tree, so every tool shows where its size comes from. Each row prints **defs** (its share of the measured definition bucket), **total** (that definition plus the arguments and results its own calls added) and the share of the window:
   - **MCP servers (n)** — the group row adds every server up; inside it, one row per server (`playwright · 25 tools`) with its own two numbers, and inside the server one row per tool with its call and result counts;
   - **plugins (n)** — one row per non-MCP tool, the tools DSH registers from plugin packages, with the same two numbers and no extra nesting;
-  - **skills (n) · system prompt** — the skill catalog closes the section for reference. A skill is not a tool, so its row prints only its size, the definition column stays empty, and the label says the size belongs to the system prompt, not to Tools;
+  - **skills (n) · system prompt** — the skill catalog closes the section for reference. A skill is not a tool, so its row prints only its size, the definition column stays empty, and the label says the size belongs to the system prompt, not to Tools. Expanding it lists every skill on the **same grid**, so the sizes keep lining up with the total column above;
   - the `by tool` list no longer exists as a separate block: every call and result is counted on the row of the tool, server or group it belongs to;
 - inside **messages**, the split between **your prompts**, **assistant responses** and **reasoning**;
 - the **skill catalog** read from the system prompt, skill by skill, with the share of the system total each entry takes;

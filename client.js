@@ -268,6 +268,7 @@ window.__ModuleLoader__.load({
       '.cdp-toolrow{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--dsw-alias-label-secondary)}',
       '.cdp-tool-defs,.cdp-tool-total,.cdp-tool-pct{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cdp-tool-defs,.cdp-tool-pct{color:var(--dsw-alias-label-secondary)}',
+      '.cdp-skill-row{padding-left:12px}',
       '.cdp-summary-cols .cdp-summary-val{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cdp-summary-pct{text-align:right;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cdp-list{display:grid;grid-template-columns:minmax(0,1fr) 72px 56px;gap:4px 10px;margin:8px 0 0;padding:0;list-style:none}',
@@ -1874,37 +1875,43 @@ window.__ModuleLoader__.load({
               h('span', { className: 'cdp-summary-text' },
                 t('tools.skills') + (skills ? ' (' + skills.entries.length + ')' : ''),
                 h('span', { className: 'cdp-muted' }, ' · ' + t('tools.skills.scope'))),
-              // A skill is not a tool: it carries no definition here, only the
-              // size it takes inside the system prompt, so its cell stays empty
-              // and the number lines up with the totals above.
+              // A skill is not a tool: it has no definition in the tools bucket,
+              // so the defs cell stays empty on purpose and the size it takes
+              // inside the system prompt prints in the total column, aligned with
+              // the group rows above it.
               h('span', { className: 'cdp-tool-defs' }, ''),
-              h('span', { className: 'cdp-summary-val' },
+              h('span', { className: 'cdp-tool-total' },
                 skillsTokens !== undefined ? '~' + compact(skillsTokens, locale) : '—'),
               h('span', { className: 'cdp-summary-pct' },
                 skillsTokens !== undefined ? share(skillsTokens, capacity) : ''),
             ),
             skills
               ? [
-                h('ul', { key: 'skills-list', className: 'cdp-list' },
+                // Same four-column grid as the rows above: the name, an empty
+                // defs cell (a skill has no tool definition) and the size it
+                // takes inside the system prompt, under the total column.
+                h('ul', { key: 'skills-list', className: 'cdp-toolrows' },
                 skills.entries.slice(0, 40).map(entry => {
                   const tokens = skillsTokens !== undefined && skillTotalSize > 0
                     ? skillsTokens * entry.size / skillTotalSize
                     : undefined
                   return [
-                    h('li', { key: 'skill:' + entry.name, className: 'cdp-item' },
+                    h('li', { key: 'skill:' + entry.name, className: 'cdp-toolrow cdp-skill-row' },
                       h('span', { className: 'cdp-mono' }, entry.name)),
-                    h('li', { key: 'skill:' + entry.name + '-value', className: 'cdp-item-val' },
+                    h('li', { key: 'skill:' + entry.name + '-defs', className: 'cdp-tool-defs' }, ''),
+                    h('li', { key: 'skill:' + entry.name + '-total', className: 'cdp-tool-total' },
                       tokens !== undefined ? '~' + compact(tokens, locale) : ''),
-                    h('li', { key: 'skill:' + entry.name + '-pct', className: 'cdp-item-pct' },
+                    h('li', { key: 'skill:' + entry.name + '-pct', className: 'cdp-tool-pct' },
                       share(tokens, capacity)),
                   ]
                 }).concat(
                   skills.entries.length > 40
                     ? [[
-                      h('li', { key: 'skills-more', className: 'cdp-item' },
+                      h('li', { key: 'skills-more', className: 'cdp-toolrow cdp-skill-row' },
                         t('tools.more', { count: skills.entries.length - 40 })),
-                      h('li', { key: 'skills-more-value', className: 'cdp-item-val' }, ''),
-                      h('li', { key: 'skills-more-pct', className: 'cdp-item-pct' }, ''),
+                      h('li', { key: 'skills-more-defs', className: 'cdp-tool-defs' }, ''),
+                      h('li', { key: 'skills-more-total', className: 'cdp-tool-total' }, ''),
+                      h('li', { key: 'skills-more-pct', className: 'cdp-tool-pct' }, ''),
                     ]]
                     : [],
                 ),
