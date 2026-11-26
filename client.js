@@ -595,6 +595,10 @@ window.__ModuleLoader__.load({
     // instead: read-only Remote calls, no model request, no Host state.
     const LOG_SCAN_PAGES = 60
     const LOG_SCAN_MESSAGES = 500
+    // A read that fails before the Remote or the session log is ready is retried
+    // with a growing delay, so the strip and the panel recover on their own.
+    const LOG_SCAN_RETRIES = 6
+    const LOG_SCAN_RETRY_MS = 2000
     const logScanCache = new Map()
     const logScanFailed = new Set()
 
@@ -1290,20 +1294,33 @@ window.__ModuleLoader__.load({
         React.useEffect(() => {
           const sessionId = props.sessionId
           if (!sessionId) return undefined
-          const cached = logScanCache.get(sessionId)
-          if (cached !== undefined) {
-            setLogScan(cached)
-            return undefined
-          }
-          if (logScanFailed.has(sessionId)) return undefined
           let alive = true
-          ensureLogScan(ctx, sessionId)
-            .then(next => {
-              if (alive) setLogScan(next)
-            })
-            .catch(() => {})
+          let attempts = 0
+          let timer = null
+          // The Remote and the session log are not always ready the moment the
+          // composer mounts (a cold start, a resumed session), so a failed read
+          // is retried instead of leaving the strip on the session-wide rate.
+          const run = () => {
+            const cached = logScanCache.get(sessionId)
+            if (cached !== undefined) {
+              setLogScan(cached)
+              return
+            }
+            logScanFailed.delete(sessionId)
+            ensureLogScan(ctx, sessionId)
+              .then(next => {
+                if (alive) setLogScan(next)
+              })
+              .catch(() => {
+                if (!alive || attempts >= LOG_SCAN_RETRIES) return
+                attempts += 1
+                timer = setTimeout(run, LOG_SCAN_RETRY_MS * attempts)
+              })
+          }
+          run()
           return () => {
             alive = false
+            if (timer) clearTimeout(timer)
           }
         }, [props.sessionId])
 
@@ -1481,39 +1498,51 @@ window.__ModuleLoader__.load({
         const [growthOpen, setGrowthOpen] = React.useState(false)
         React.useEffect(() => {
           if (!sessionId) return undefined
-          const cached = logScanCache.get(sessionId)
-          if (cached !== undefined) {
-            setLogScan(cached)
-            setLogState('done')
-            return undefined
-          }
-          if (logScanFailed.has(sessionId)) {
-            setLogState('failed')
-            return undefined
-          }
           let alive = true
-          setLogState('running')
-          ensureLogScan(ctx, sessionId, rows => {
-            if (!alive) return
-            setLogScan(previous => ({
-              compactions: rows,
-              split: previous ? previous.split : null,
-              systemText: previous ? previous.systemText : '',
-              tools: previous ? previous.tools : null,
-              usage: previous ? previous.usage : null,
-            }))
-          })
-            .then(next => {
-              if (!alive) return
-              setLogScan(next)
+          let attempts = 0
+          let timer = null
+          // Same retry as the strip: a cold start can mount the panel before the
+          // session log is readable, and giving up would leave it on the window's
+          // rows for the rest of the page.
+          const run = () => {
+            const cached = logScanCache.get(sessionId)
+            if (cached !== undefined) {
+              setLogScan(cached)
               setLogState('done')
-            })
-            .catch(() => {
+              return
+            }
+            logScanFailed.delete(sessionId)
+            setLogState('running')
+            ensureLogScan(ctx, sessionId, rows => {
               if (!alive) return
-              setLogState('failed')
+              setLogScan(previous => ({
+                compactions: rows,
+                split: previous ? previous.split : null,
+                systemText: previous ? previous.systemText : '',
+                tools: previous ? previous.tools : null,
+                usage: previous ? previous.usage : null,
+              }))
             })
+              .then(next => {
+                if (!alive) return
+                setLogScan(next)
+                setLogState('done')
+              })
+              .catch(() => {
+                if (!alive) return
+                if (attempts >= LOG_SCAN_RETRIES) {
+                  setLogState('failed')
+                  return
+                }
+                attempts += 1
+                setLogState('running')
+                timer = setTimeout(run, LOG_SCAN_RETRY_MS * attempts)
+              })
+          }
+          run()
           return () => {
             alive = false
+            if (timer) clearTimeout(timer)
           }
         }, [sessionId, scanNonce])
 
